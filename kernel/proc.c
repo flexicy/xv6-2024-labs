@@ -259,7 +259,7 @@ int
 fork(void)
 {
   int i, pid;
-  struct proc *np;
+  struct proc *np; //新创子进程
   struct proc *p = myproc();
 
   // Allocate process.
@@ -290,6 +290,8 @@ fork(void)
   np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
+
+  np->trace_mask = p->trace_mask;
 
   pid = np->pid;
 
@@ -691,5 +693,14 @@ procdump(void)
       state = "???";
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
+  }
+}
+
+void flexicy_procnum(uint64* dst){
+  *dst =0;
+  struct proc* p;
+  for(p = proc;p<&proc[NPROC];p++){
+    if(p->state != UNUSED)
+      (*dst) ++;
   }
 }
