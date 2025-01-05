@@ -39,22 +39,24 @@ exec(char *path, char **argv)
     goto bad;
 
   // Load program into memory.
-  for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
-    if(readi(ip, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph))
-      goto bad;
-    if(ph.type != ELF_PROG_LOAD)
-      continue;
-    if(ph.memsz < ph.filesz)
-      goto bad;
-    if(ph.vaddr + ph.memsz < ph.vaddr)
-      goto bad;
-    uint64 sz1;
-    if((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz)) == 0)
-      goto bad;
-    sz = sz1;
-    if(ph.vaddr % PGSIZE != 0)
-      goto bad;
-    if(loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0)
+for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){    
+if(readi(ip, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph))      
+      goto bad;    
+if(ph.type != ELF_PROG_LOAD)      
+      continue;    
+if(ph.memsz < ph.filesz)      
+      goto bad;    
+if(ph.vaddr + ph.memsz < ph.vaddr)      
+      goto bad;    
+uint64 sz1;    
+if((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz)) == 0)      
+      goto bad;    
+if(sz1 >= PLIC) // 防止程序内存大小超过 PLIC      
+      goto bad;    
+sz = sz1;    
+if(ph.vaddr % PGSIZE != 0)      
+      goto bad;    
+if(loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0)      
       goto bad;
   }
   iunlockput(ip);
@@ -107,6 +109,11 @@ exec(char *path, char **argv)
     if(*s == '/')
       last = s+1;
   safestrcpy(p->name, last, sizeof(p->name));
+
+  //清除以前内核也表中对用户地址的映射 采用新的地址映射
+  uvmunmap(p->flexicy_kernelpgtbl,0,PGROUNDUP(oldsz)/PGSIZE,0);
+  flexicy_kvmcopymappings(pagetable,p->flexicy_kernelpgtbl,0,sz);
+  
     
   // Commit to the user image.
   oldpagetable = p->pagetable;
@@ -115,6 +122,8 @@ exec(char *path, char **argv)
   p->trapframe->epc = elf.entry;  // initial program counter = main
   p->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
+    if(p->pid==1)
+     {flexicy_vmprint(p->pagetable);}
 
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
